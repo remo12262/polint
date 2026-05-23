@@ -211,10 +211,18 @@ export default function App() {
     return()=>cancelAnimationFrame(animRef.current)
   },[nodes,visibleEdges,selected,showHidden])
 
-  function getNodeAt(mx,my){
+  function toCanvasCoords(cssX,cssY){
+    const canvas=canvasRef.current
+    if(!canvas) return{x:cssX,y:cssY}
+    const r=canvas.getBoundingClientRect()
+    return{x:cssX*(canvas.width/r.width),y:cssY*(canvas.height/r.height)}
+  }
+
+  function getNodeAt(cssX,cssY){
+    const{x,y}=toCanvasCoords(cssX,cssY)
     for(let i=nodes.length-1;i>=0;i--){
       const n=nodes[i],p=posRef.current[n.id]; if(!p) continue
-      if(Math.sqrt((mx-p.x)**2+(my-p.y)**2)<18) return n
+      if(Math.sqrt((x-p.x)**2+(y-p.y)**2)<25) return n
     }
     return null
   }
@@ -229,19 +237,23 @@ export default function App() {
 
   function onMouseDown(e){
     const r=e.currentTarget.getBoundingClientRect()
-    const n=getNodeAt(e.clientX-r.left,e.clientY-r.top)
-    if(n){dragRef.current=n;const p=posRef.current[n.id];dragOffRef.current={x:e.clientX-r.left-p.x,y:e.clientY-r.top-p.y}}
+    const cssX=e.clientX-r.left,cssY=e.clientY-r.top
+    const n=getNodeAt(cssX,cssY)
+    if(n){dragRef.current=n;const{x,y}=toCanvasCoords(cssX,cssY);const p=posRef.current[n.id];dragOffRef.current={x:x-p.x,y:y-p.y}}
   }
   function onMouseMove(e){
     const r=e.currentTarget.getBoundingClientRect()
-    const mx=e.clientX-r.left,my=e.clientY-r.top
-    if(dragRef.current){const p=posRef.current[dragRef.current.id];p.x=mx-dragOffRef.current.x;p.y=my-dragOffRef.current.y;velRef.current[dragRef.current.id]={vx:0,vy:0}}
-    else{hovRef.current=getNodeAt(mx,my);e.currentTarget.style.cursor=hovRef.current?"pointer":"default"}
+    const cssX=e.clientX-r.left,cssY=e.clientY-r.top
+    if(dragRef.current){const{x,y}=toCanvasCoords(cssX,cssY);const p=posRef.current[dragRef.current.id];p.x=x-dragOffRef.current.x;p.y=y-dragOffRef.current.y;velRef.current[dragRef.current.id]={vx:0,vy:0}}
+    else{hovRef.current=getNodeAt(cssX,cssY);e.currentTarget.style.cursor=hovRef.current?"pointer":"default"}
   }
   function onMouseUp(e){
     const r=e.currentTarget.getBoundingClientRect()
-    const n=getNodeAt(e.clientX-r.left,e.clientY-r.top)
-    if(!dragRef.current||Math.hypot(e.clientX-r.left-(posRef.current[dragRef.current.id]?.x+dragOffRef.current.x||0),e.clientY-r.top-(posRef.current[dragRef.current.id]?.y+dragOffRef.current.y||0))<5)
+    const cssX=e.clientX-r.left,cssY=e.clientY-r.top
+    const n=getNodeAt(cssX,cssY)
+    const{x,y}=toCanvasCoords(cssX,cssY)
+    const dragging=dragRef.current
+    if(!dragging||Math.hypot(x-(posRef.current[dragging.id]?.x||0)-dragOffRef.current.x,y-(posRef.current[dragging.id]?.y||0)-dragOffRef.current.y)<5)
       selectNode(selected===n?.id?null:n)
     dragRef.current=null
   }

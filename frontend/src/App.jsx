@@ -95,12 +95,11 @@ export default function App() {
     })
   },[nodes])
 
-  const visibleEdges = showHidden ? edges : edges.filter(e=>e.hidden_score<50)
-
   useEffect(()=>{
     const canvas=canvasRef.current
     if(!canvas||nodes.length===0) return
     const ctx=canvas.getContext("2d")
+    const visibleEdges = showHidden ? edges : edges.filter(e=>(e.hidden_score||0)<50)
     let tick=0
 
     function force(){
@@ -179,7 +178,7 @@ export default function App() {
         const isHov=hovRef.current?.id===n.id
         const isConn=sel&&visibleEdges.some(e=>(e.source===sel&&e.target===n.id)||(e.target===sel&&e.source===n.id))
         const alpha=sel&&!isSel&&!isConn?.2:1
-        const r=isSel?15:isHov?13:Math.max(7,Math.min(13,n.influence_score/8))
+        const r=isSel?15:isHov?13:Math.max(7,Math.min(13,(n.influence_score||0)/8))
 
         ctx.save()
         ctx.globalAlpha=alpha
@@ -209,7 +208,7 @@ export default function App() {
     }
     animRef.current=requestAnimationFrame(loop)
     return()=>cancelAnimationFrame(animRef.current)
-  },[nodes,visibleEdges,selected,showHidden])
+  },[nodes,edges,selected,showHidden])
 
   function toCanvasCoords(cssX,cssY){
     const canvas=canvasRef.current

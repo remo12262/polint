@@ -82,14 +82,13 @@ export default function App() {
   useEffect(()=>{ fetchData() },[fetchData])
 
   useEffect(()=>{
-    const canvas = canvasRef.current
-    if(!canvas||nodes.length===0) return
-    const W=canvas.width, H=canvas.height, cx=W/2, cy=H/2
+    if(nodes.length===0) return
+    const cx=350,cy=260
     nodes.forEach((n,i)=>{
       if(!posRef.current[n.id]){
         const angle=(i/nodes.length)*Math.PI*2
-        const r=Math.min(W,H)*0.3
-        posRef.current[n.id]={x:cx+Math.cos(angle)*r+(Math.random()-.5)*80,y:cy+Math.sin(angle)*r+(Math.random()-.5)*80}
+        const rad=156
+        posRef.current[n.id]={x:cx+Math.cos(angle)*rad+(Math.random()-.5)*80,y:cy+Math.sin(angle)*rad+(Math.random()-.5)*80}
         velRef.current[n.id]={vx:0,vy:0}
       }
     })
@@ -208,7 +207,7 @@ export default function App() {
     }
     animRef.current=requestAnimationFrame(loop)
     return()=>cancelAnimationFrame(animRef.current)
-  },[nodes,edges,selected,showHidden])
+  },[nodes,edges,selected,showHidden,tab])
 
   function toCanvasCoords(cssX,cssY){
     const canvas=canvasRef.current

@@ -95,117 +95,122 @@ export default function App() {
   },[nodes])
 
   useEffect(()=>{
-    const canvas=canvasRef.current
-    if(!canvas||nodes.length===0) return
-    const ctx=canvas.getContext("2d")
+    if(nodes.length===0) return
     const visibleEdges = showHidden ? edges : edges.filter(e=>(e.hidden_score||0)<50)
     let tick=0
 
-    function force(){
-      const W=canvas.width,H=canvas.height,cx=W/2,cy=H/2
-      nodes.forEach(a=>{
-        const pa=posRef.current[a.id]; if(!pa) return
-        const va=velRef.current[a.id]||{vx:0,vy:0}
-        nodes.forEach(b=>{
-          if(a.id===b.id) return
-          const pb=posRef.current[b.id]; if(!pb) return
-          const dx=pa.x-pb.x,dy=pa.y-pb.y,dist=Math.sqrt(dx*dx+dy*dy)||1
-          const f=5500/(dist*dist)
-          va.vx+=(dx/dist)*f; va.vy+=(dy/dist)*f
+    function start(){
+      const canvas=canvasRef.current
+      if(!canvas){ animRef.current=requestAnimationFrame(start); return }
+      canvas.width=700; canvas.height=520
+      const ctx=canvas.getContext("2d")
+
+      function force(){
+        const W=canvas.width,H=canvas.height,cx=W/2,cy=H/2
+        nodes.forEach(a=>{
+          const pa=posRef.current[a.id]; if(!pa) return
+          const va=velRef.current[a.id]||{vx:0,vy:0}
+          nodes.forEach(b=>{
+            if(a.id===b.id) return
+            const pb=posRef.current[b.id]; if(!pb) return
+            const dx=pa.x-pb.x,dy=pa.y-pb.y,dist=Math.sqrt(dx*dx+dy*dy)||1
+            const f=5500/(dist*dist)
+            va.vx+=(dx/dist)*f; va.vy+=(dy/dist)*f
+          })
+          va.vx+=(cx-pa.x)*0.004; va.vy+=(cy-pa.y)*0.004
+          velRef.current[a.id]=va
         })
-        va.vx+=(cx-pa.x)*0.004; va.vy+=(cy-pa.y)*0.004
-        velRef.current[a.id]=va
-      })
-      visibleEdges.forEach(e=>{
-        const ps=posRef.current[e.source],pt=posRef.current[e.target]
-        if(!ps||!pt) return
-        const vs=velRef.current[e.source]||{vx:0,vy:0}
-        const vt=velRef.current[e.target]||{vx:0,vy:0}
-        const dx=pt.x-ps.x,dy=pt.y-ps.y,dist=Math.sqrt(dx*dx+dy*dy)||1
-        const f=(dist-140)*0.014
-        vs.vx+=(dx/dist)*f; vs.vy+=(dy/dist)*f
-        vt.vx-=(dx/dist)*f; vt.vy-=(dy/dist)*f
-      })
-      nodes.forEach(n=>{
-        if(n.id===dragRef.current?.id) return
-        const p=posRef.current[n.id],v=velRef.current[n.id]; if(!p||!v) return
-        v.vx*=0.75; v.vy*=0.75
-        p.x=Math.max(50,Math.min(canvas.width-50,p.x+v.vx))
-        p.y=Math.max(40,Math.min(canvas.height-40,p.y+v.vy))
-      })
-    }
+        visibleEdges.forEach(e=>{
+          const ps=posRef.current[e.source],pt=posRef.current[e.target]
+          if(!ps||!pt) return
+          const vs=velRef.current[e.source]||{vx:0,vy:0}
+          const vt=velRef.current[e.target]||{vx:0,vy:0}
+          const dx=pt.x-ps.x,dy=pt.y-ps.y,dist=Math.sqrt(dx*dx+dy*dy)||1
+          const f=(dist-140)*0.014
+          vs.vx+=(dx/dist)*f; vs.vy+=(dy/dist)*f
+          vt.vx-=(dx/dist)*f; vt.vy-=(dy/dist)*f
+        })
+        nodes.forEach(n=>{
+          if(n.id===dragRef.current?.id) return
+          const p=posRef.current[n.id],v=velRef.current[n.id]; if(!p||!v) return
+          v.vx*=0.75; v.vy*=0.75
+          p.x=Math.max(50,Math.min(canvas.width-50,p.x+v.vx))
+          p.y=Math.max(40,Math.min(canvas.height-40,p.y+v.vy))
+        })
+      }
 
-    function draw(){
-      ctx.clearRect(0,0,canvas.width,canvas.height)
-      const sel=selected
+      function draw(){
+        ctx.clearRect(0,0,canvas.width,canvas.height)
+        const sel=selected
 
-      visibleEdges.forEach(e=>{
-        const ps=posRef.current[e.source],pt=posRef.current[e.target]
-        if(!ps||!pt) return
-        const isHl=sel&&(e.source===sel||e.target===sel)
-        const edgeColor=EDGE_COLORS[e.type]||(e.hidden_score>60?"#E24B4A":"#888")
-        const isDashed=e.type==="RETE_INFORMALE"||e.type==="FINANZIA_OCCULTO"
+        visibleEdges.forEach(e=>{
+          const ps=posRef.current[e.source],pt=posRef.current[e.target]
+          if(!ps||!pt) return
+          const isHl=sel&&(e.source===sel||e.target===sel)
+          const edgeColor=EDGE_COLORS[e.type]||(e.hidden_score>60?"#E24B4A":"#888")
+          const isDashed=e.type==="RETE_INFORMALE"||e.type==="FINANZIA_OCCULTO"
 
-        ctx.save()
-        ctx.beginPath()
-        ctx.moveTo(ps.x,ps.y); ctx.lineTo(pt.x,pt.y)
-        if(isDashed) ctx.setLineDash([5,4])
-        ctx.strokeStyle=isHl?edgeColor:edgeColor+(showHidden?"55":"22")
-        ctx.lineWidth=isHl?2:0.8
-        ctx.stroke()
-        ctx.setLineDash([])
-
-        if(isHl){
-          const mx=(ps.x+pt.x)/2,my=(ps.y+pt.y)/2
-          const angle=Math.atan2(pt.y-ps.y,pt.x-ps.x)
+          ctx.save()
           ctx.beginPath()
-          ctx.moveTo(mx-8*Math.cos(angle-.4),my-8*Math.sin(angle-.4))
-          ctx.lineTo(mx,my)
-          ctx.lineTo(mx-8*Math.cos(angle+.4),my-8*Math.sin(angle+.4))
-          ctx.strokeStyle=edgeColor; ctx.lineWidth=1.5; ctx.stroke()
-          // Edge label
-          ctx.font="10px sans-serif"; ctx.fillStyle=edgeColor
-          ctx.textAlign="center"; ctx.fillText(e.type.replace(/_/g," "),mx,my-8)
-        }
-        ctx.restore()
-      })
+          ctx.moveTo(ps.x,ps.y); ctx.lineTo(pt.x,pt.y)
+          if(isDashed) ctx.setLineDash([5,4])
+          ctx.strokeStyle=isHl?edgeColor:edgeColor+(showHidden?"55":"22")
+          ctx.lineWidth=isHl?2:0.8
+          ctx.stroke()
+          ctx.setLineDash([])
 
-      nodes.forEach(n=>{
-        const p=posRef.current[n.id]; if(!p) return
-        const color=NODE_COLORS[n.type]||"#888"
-        const isSel=n.id===sel
-        const isHov=hovRef.current?.id===n.id
-        const isConn=sel&&visibleEdges.some(e=>(e.source===sel&&e.target===n.id)||(e.target===sel&&e.source===n.id))
-        const alpha=sel&&!isSel&&!isConn?.2:1
-        const r=isSel?15:isHov?13:Math.max(7,Math.min(13,(n.influence_score||0)/8))
+          if(isHl){
+            const mx=(ps.x+pt.x)/2,my=(ps.y+pt.y)/2
+            const angle=Math.atan2(pt.y-ps.y,pt.x-ps.x)
+            ctx.beginPath()
+            ctx.moveTo(mx-8*Math.cos(angle-.4),my-8*Math.sin(angle-.4))
+            ctx.lineTo(mx,my)
+            ctx.lineTo(mx-8*Math.cos(angle+.4),my-8*Math.sin(angle+.4))
+            ctx.strokeStyle=edgeColor; ctx.lineWidth=1.5; ctx.stroke()
+            ctx.font="10px sans-serif"; ctx.fillStyle=edgeColor
+            ctx.textAlign="center"; ctx.fillText(e.type.replace(/_/g," "),mx,my-8)
+          }
+          ctx.restore()
+        })
 
-        ctx.save()
-        ctx.globalAlpha=alpha
-        // Hidden score ring
-        if(n.hidden_score>50){
-          ctx.beginPath(); ctx.arc(p.x,p.y,r+5,0,Math.PI*2)
-          ctx.strokeStyle=hiddenColor(n.hidden_score)+"66"; ctx.lineWidth=2; ctx.stroke()
-        }
-        if(isSel||isHov){
-          ctx.beginPath(); ctx.arc(p.x,p.y,r+7,0,Math.PI*2)
-          ctx.fillStyle=color+"22"; ctx.fill()
-        }
-        ctx.beginPath(); ctx.arc(p.x,p.y,r,0,Math.PI*2)
-        ctx.fillStyle=color; ctx.fill()
-        ctx.strokeStyle="rgba(255,255,255,0.65)"; ctx.lineWidth=1.5; ctx.stroke()
-        ctx.font=`${isSel?"500":"400"} 11px sans-serif`
-        ctx.fillStyle="rgba(0,0,0,0.78)"; ctx.textAlign="center"
-        ctx.fillText(n.label,p.x,p.y+r+13)
-        ctx.restore()
-      })
-    }
+        nodes.forEach(n=>{
+          const p=posRef.current[n.id]; if(!p) return
+          const color=NODE_COLORS[n.type]||"#888"
+          const isSel=n.id===sel
+          const isHov=hovRef.current?.id===n.id
+          const isConn=sel&&visibleEdges.some(e=>(e.source===sel&&e.target===n.id)||(e.target===sel&&e.source===n.id))
+          const alpha=sel&&!isSel&&!isConn?.2:1
+          const r=isSel?15:isHov?13:Math.max(7,Math.min(13,(n.influence_score||0)/8))
 
-    function loop(){
-      if(tick<300){force();tick++}
-      draw()
+          ctx.save()
+          ctx.globalAlpha=alpha
+          if(n.hidden_score>50){
+            ctx.beginPath(); ctx.arc(p.x,p.y,r+5,0,Math.PI*2)
+            ctx.strokeStyle=hiddenColor(n.hidden_score)+"66"; ctx.lineWidth=2; ctx.stroke()
+          }
+          if(isSel||isHov){
+            ctx.beginPath(); ctx.arc(p.x,p.y,r+7,0,Math.PI*2)
+            ctx.fillStyle=color+"22"; ctx.fill()
+          }
+          ctx.beginPath(); ctx.arc(p.x,p.y,r,0,Math.PI*2)
+          ctx.fillStyle=color; ctx.fill()
+          ctx.strokeStyle="rgba(255,255,255,0.65)"; ctx.lineWidth=1.5; ctx.stroke()
+          ctx.font=`${isSel?"500":"400"} 11px sans-serif`
+          ctx.fillStyle="rgba(0,0,0,0.78)"; ctx.textAlign="center"
+          ctx.fillText(n.label,p.x,p.y+r+13)
+          ctx.restore()
+        })
+      }
+
+      function loop(){
+        if(tick<300){force();tick++}
+        draw()
+        animRef.current=requestAnimationFrame(loop)
+      }
       animRef.current=requestAnimationFrame(loop)
     }
-    animRef.current=requestAnimationFrame(loop)
+
+    animRef.current=requestAnimationFrame(start)
     return()=>cancelAnimationFrame(animRef.current)
   },[nodes,edges,selected,showHidden,tab])
 

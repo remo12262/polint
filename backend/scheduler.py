@@ -1,7 +1,7 @@
 import asyncio
 from datetime import datetime
 
-REFRESH_INTERVAL = 6 * 60 * 60  # 6 hours
+REFRESH_INTERVAL = 24 * 60 * 60  # 24 hours
 
 
 class Scheduler:

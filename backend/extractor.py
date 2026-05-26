@@ -142,9 +142,10 @@ class InfluenceExtractor:
                 model="claude-sonnet-4-20250514",
                 max_tokens=2000,
                 system=SYSTEM_PROMPT,
+                tools=[{"type": "web_search_20250305", "name": "web_search"}],
                 messages=[{"role": "user", "content": EXTRACT_PROMPT.format(text=text[:3000])}]
             )
-            raw = msg.content[0].text.strip()
+            raw = next((b.text for b in msg.content if hasattr(b, "text")), "").strip()
             if raw.startswith("```"):
                 raw = raw.split("```")[1]
                 if raw.startswith("json"): raw = raw[4:]
@@ -206,9 +207,10 @@ class InfluenceExtractor:
             msg = client.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=2500,
+                tools=[{"type": "web_search_20250305", "name": "web_search"}],
                 messages=[{"role": "user", "content": PREDICT_PROMPT.format(graph_data=graph_data)}]
             )
-            raw = msg.content[0].text.strip()
+            raw = next((b.text for b in msg.content if hasattr(b, "text")), "").strip()
             if raw.startswith("```"):
                 raw = raw.split("```")[1]
                 if raw.startswith("json"): raw = raw[4:]
@@ -228,12 +230,13 @@ class InfluenceExtractor:
             msg = client.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=2000,
+                tools=[{"type": "web_search_20250305", "name": "web_search"}],
                 messages=[{"role": "user", "content": HIDDEN_NETWORKS_PROMPT.format(
                     entities=json.dumps(hidden_nodes, ensure_ascii=False),
                     relations=json.dumps(hidden_edges, ensure_ascii=False)
                 )}]
             )
-            raw = msg.content[0].text.strip()
+            raw = next((b.text for b in msg.content if hasattr(b, "text")), "").strip()
             if raw.startswith("```"):
                 raw = raw.split("```")[1]
                 if raw.startswith("json"): raw = raw[4:]

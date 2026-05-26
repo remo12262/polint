@@ -55,6 +55,6 @@ class Scheduler:
             print(f"[scheduler] Error: {e}")
 
     async def run(self):
-        while True:
-            await self.run_once()
-            await asyncio.sleep(REFRESH_INTERVAL)
+        """Runs once at startup. Use POST /api/refresh to trigger manually."""
+        await self.run_once()
+        # await asyncio.sleep(REFRESH_INTERVAL)  # disabled: manual-only via POST /api/refresh

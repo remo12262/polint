@@ -1,104 +1,21 @@
-import asyncpg
 import json
-import os
 from typing import List, Dict, Optional
 from datetime import datetime
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "")
-
 
 class PolintDB:
-    pool: asyncpg.Pool = None
+    def __init__(self):
+        self.nodes: Dict[str, Dict] = {}
+        self.edges: Dict[str, Dict] = {}
+        self.predictions: Dict[str, Dict] = {}
+        self.alerts: Dict[str, Dict] = {}
+        self.hidden_networks: Dict[str, Dict] = {}
 
     async def init(self):
-        self.pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=5)
-        async with self.pool.acquire() as conn:
-            async with conn.transaction():
-                await conn.execute("""
-                    CREATE TABLE IF NOT EXISTS nodes (
-                        id TEXT PRIMARY KEY,
-                        label TEXT NOT NULL,
-                        type TEXT NOT NULL,
-                        domain TEXT DEFAULT 'political',
-                        country TEXT,
-                        description TEXT,
-                        influence_score INTEGER DEFAULT 0,
-                        hidden_score INTEGER DEFAULT 0,
-                        created_at TEXT,
-                        updated_at TEXT
-                    )
-                """)
-                await conn.execute("""
-                    CREATE TABLE IF NOT EXISTS edges (
-                        id TEXT PRIMARY KEY,
-                        source TEXT NOT NULL,
-                        target TEXT NOT NULL,
-                        type TEXT NOT NULL,
-                        fact TEXT,
-                        influence_score INTEGER DEFAULT 0,
-                        hidden_score INTEGER DEFAULT 0,
-                        source_doc TEXT,
-                        date TEXT,
-                        created_at TEXT
-                    )
-                """)
-                await conn.execute("""
-                    CREATE TABLE IF NOT EXISTS predictions (
-                        id TEXT PRIMARY KEY,
-                        title TEXT NOT NULL,
-                        prediction TEXT,
-                        actors_involved TEXT,
-                        hidden_network TEXT,
-                        confidence INTEGER DEFAULT 0,
-                        timeframe TEXT,
-                        evidence TEXT,
-                        trigger_event TEXT,
-                        impact_score INTEGER DEFAULT 0,
-                        category TEXT,
-                        severity TEXT DEFAULT 'MEDIUM',
-                        created_at TEXT,
-                        is_verified INTEGER DEFAULT 0
-                    )
-                """)
-                await conn.execute("""
-                    CREATE TABLE IF NOT EXISTS alerts (
-                        id TEXT PRIMARY KEY,
-                        title TEXT NOT NULL,
-                        description TEXT,
-                        severity TEXT DEFAULT 'MEDIUM',
-                        entities_involved TEXT,
-                        predicted_impact TEXT,
-                        timeframe TEXT,
-                        recommendation TEXT,
-                        hidden_network TEXT,
-                        confidence INTEGER DEFAULT 0,
-                        created_at TEXT,
-                        is_read INTEGER DEFAULT 0
-                    )
-                """)
-                await conn.execute("""
-                    CREATE TABLE IF NOT EXISTS hidden_networks (
-                        id TEXT PRIMARY KEY,
-                        name TEXT NOT NULL,
-                        description TEXT,
-                        core_actors TEXT,
-                        mechanism TEXT,
-                        opacity_score INTEGER DEFAULT 0,
-                        reach_score INTEGER DEFAULT 0,
-                        policy_areas TEXT,
-                        created_at TEXT
-                    )
-                """)
-                await conn.execute("CREATE INDEX IF NOT EXISTS idx_nodes_type ON nodes(type)")
-                await conn.execute("CREATE INDEX IF NOT EXISTS idx_edges_source ON edges(source)")
-                await conn.execute("CREATE INDEX IF NOT EXISTS idx_edges_target ON edges(target)")
-                await conn.execute("CREATE INDEX IF NOT EXISTS idx_predictions_conf ON predictions(confidence)")
+        if not self.nodes:
+            self._seed_baseline()
 
-                count = await conn.fetchval("SELECT COUNT(*) FROM nodes")
-                if count == 0:
-                    await self._seed_baseline(conn)
-
-    async def _seed_baseline(self, conn):
+    def _seed_baseline(self):
         now = datetime.utcnow().isoformat()
         nodes = [
             ("meloni_g",     "Giorgia Meloni",               "PolicyMaker",         "political", "IT", "Presidente del Consiglio italiano. Leader FdI. Asse con PPE EU.", 92, 20),
@@ -139,205 +56,210 @@ class PolintDB:
             ("e12", "wef",          "meloni_g",    "OPPOSTO_A",        "Meloni critica agenda WEF. Posizionamento sovranista.", 60, 20, "2023-01"),
             ("e13", "xi_jinping",   "cdp_it",      "RETE_INFORMALE",   "CDP partecipa a progetti Via della Seta. Interessi infrastrutturali cinesi.", 75, 72, "2019-03"),
             ("e14", "lobby_pharma", "vdl_u",       "LOBBYING_SU",      "Lobby farmaceutica influenza gestione contratti vaccini COVID EU.", 88, 82, "2020-12"),
-            ("e15", "bruegel",      "ppe_eu",       "RETE_INFORMALE",   "Think tank Bruegel orienta posizioni PPE su politiche economiche EU.", 65, 58, "2022-01"),
+            ("e15", "bruegel",      "ppe_eu",      "RETE_INFORMALE",   "Think tank Bruegel orienta posizioni PPE su politiche economiche EU.", 65, 58, "2022-01"),
             ("e16", "blackrock",    "cdp_it",      "INVESTE_IN",       "BlackRock partecipa a fondi infrastrutturali italiani via CDP.", 72, 68, "2021-06"),
             ("e17", "gates_f",      "lobby_pharma","ALLEATO_DI",       "Gates Foundation allineata con Big Pharma su accesso vaccini.", 68, 55, "2020-04"),
             ("e18", "nato_hq",      "meloni_g",    "ALLEATO_DI",       "Governo Meloni atlantista. Supporto NATO e invii Ucraina.", 82, 15, "2022-02"),
             ("e19", "politico_eu",  "vdl_u",       "CITA_POSITIVO",    "Politico EU agenda-setting favorevole a VdL su AI Act e Green Deal.", 65, 48, "2023-01"),
-            ("e20", "tajani_a",     "ppe_eu",       "MEMBRO_DI",        "Tajani membro storico PPE. Vice-presidente PPE per anni.", 80, 10, "2010-01"),
+            ("e20", "tajani_a",     "ppe_eu",      "MEMBRO_DI",        "Tajani membro storico PPE. Vice-presidente PPE per anni.", 80, 10, "2010-01"),
         ]
-        await conn.executemany(
-            """INSERT INTO nodes
-                   (id,label,type,domain,country,description,influence_score,hidden_score,created_at,updated_at)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT DO NOTHING""",
-            [(n[0], n[1], n[2], n[3], n[4], n[5], n[6], n[7], now, now) for n in nodes]
-        )
-        await conn.executemany(
-            """INSERT INTO edges
-                   (id,source,target,type,fact,influence_score,hidden_score,source_doc,date,created_at)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT DO NOTHING""",
-            [(e[0], e[1], e[2], e[3], e[4], e[5], e[6], "", e[7], now) for e in edges]
-        )
+        for n in nodes:
+            self.nodes[n[0]] = {
+                "id": n[0], "label": n[1], "type": n[2], "domain": n[3],
+                "country": n[4], "description": n[5],
+                "influence_score": n[6], "hidden_score": n[7],
+                "created_at": now, "updated_at": now,
+            }
+        for e in edges:
+            self.edges[e[0]] = {
+                "id": e[0], "source": e[1], "target": e[2], "type": e[3],
+                "fact": e[4], "influence_score": e[5], "hidden_score": e[6],
+                "source_doc": "", "date": e[7], "created_at": now,
+            }
 
     async def get_nodes(self, domain=None) -> List[Dict]:
-        async with self.pool.acquire() as conn:
-            rows = await conn.fetch("SELECT * FROM nodes ORDER BY influence_score DESC")
-            return [dict(r) for r in rows]
+        nodes = list(self.nodes.values())
+        return sorted(nodes, key=lambda n: n.get("influence_score", 0), reverse=True)
 
     async def get_edges(self, domain=None) -> List[Dict]:
-        async with self.pool.acquire() as conn:
-            rows = await conn.fetch("SELECT * FROM edges ORDER BY hidden_score DESC")
-            return [dict(r) for r in rows]
+        edges = list(self.edges.values())
+        return sorted(edges, key=lambda e: e.get("hidden_score", 0), reverse=True)
 
     async def get_node(self, node_id: str) -> Optional[Dict]:
-        async with self.pool.acquire() as conn:
-            row = await conn.fetchrow("SELECT * FROM nodes WHERE id=$1", node_id)
-            return dict(row) if row else None
+        return self.nodes.get(node_id)
 
     async def get_node_relations(self, node_id: str) -> List[Dict]:
-        async with self.pool.acquire() as conn:
-            rows = await conn.fetch("""
-                SELECT e.*,
-                    ns.label as source_label, ns.type as source_type,
-                    nt.label as target_label, nt.type as target_type
-                FROM edges e
-                JOIN nodes ns ON e.source = ns.id
-                JOIN nodes nt ON e.target = nt.id
-                WHERE e.source=$1 OR e.target=$1
-                ORDER BY e.hidden_score DESC
-            """, node_id)
-            return [dict(r) for r in rows]
+        results = []
+        for e in self.edges.values():
+            if e["source"] == node_id or e["target"] == node_id:
+                src = self.nodes.get(e["source"], {})
+                tgt = self.nodes.get(e["target"], {})
+                results.append({
+                    **e,
+                    "source_label": src.get("label", ""),
+                    "source_type":  src.get("type", ""),
+                    "target_label": tgt.get("label", ""),
+                    "target_type":  tgt.get("type", ""),
+                })
+        return sorted(results, key=lambda e: e.get("hidden_score", 0), reverse=True)
 
     async def get_influence_path(self, node_id: str) -> List[Dict]:
-        async with self.pool.acquire() as conn:
-            rows = await conn.fetch("""
-                SELECT DISTINCT n.id, n.label, n.type, n.influence_score, n.hidden_score
-                FROM nodes n
-                JOIN edges e ON (e.source = n.id OR e.target = n.id)
-                WHERE (e.source=$1 OR e.target=$1) AND n.id != $1
-                ORDER BY n.influence_score DESC LIMIT 10
-            """, node_id)
-            return [dict(r) for r in rows]
+        neighbour_ids = set()
+        for e in self.edges.values():
+            if e["source"] == node_id:
+                neighbour_ids.add(e["target"])
+            elif e["target"] == node_id:
+                neighbour_ids.add(e["source"])
+        neighbours = [self.nodes[nid] for nid in neighbour_ids if nid in self.nodes]
+        return sorted(neighbours, key=lambda n: n.get("influence_score", 0), reverse=True)[:10]
 
     async def get_predictions(self) -> List[Dict]:
-        async with self.pool.acquire() as conn:
-            rows = await conn.fetch(
-                "SELECT * FROM predictions ORDER BY confidence DESC, created_at DESC LIMIT 30"
-            )
-            return [dict(r) for r in rows]
+        preds = sorted(
+            self.predictions.values(),
+            key=lambda p: (p.get("confidence", 0), p.get("created_at", "")),
+            reverse=True,
+        )
+        return preds[:30]
 
     async def get_hidden_networks(self) -> List[Dict]:
-        async with self.pool.acquire() as conn:
-            rows = await conn.fetch("SELECT * FROM hidden_networks ORDER BY opacity_score DESC")
-            return [dict(r) for r in rows]
+        return sorted(
+            self.hidden_networks.values(),
+            key=lambda h: h.get("opacity_score", 0),
+            reverse=True,
+        )
 
     async def get_alerts(self, severity=None) -> List[Dict]:
-        async with self.pool.acquire() as conn:
-            if severity:
-                rows = await conn.fetch(
-                    "SELECT * FROM alerts WHERE severity=$1 ORDER BY confidence DESC, created_at DESC",
-                    severity
-                )
-            else:
-                rows = await conn.fetch(
-                    "SELECT * FROM alerts ORDER BY confidence DESC, created_at DESC LIMIT 50"
-                )
-            return [dict(r) for r in rows]
+        alerts = list(self.alerts.values())
+        if severity:
+            alerts = [a for a in alerts if a.get("severity") == severity]
+        return sorted(
+            alerts,
+            key=lambda a: (a.get("confidence", 0), a.get("created_at", "")),
+            reverse=True,
+        )[:50]
 
     async def get_influence_ranking(self) -> List[Dict]:
-        async with self.pool.acquire() as conn:
-            rows = await conn.fetch("""
-                SELECT id, label, type, country, influence_score, hidden_score,
-                    (influence_score + hidden_score) / 2 as combined_score
-                FROM nodes ORDER BY combined_score DESC LIMIT 20
-            """)
-            return [dict(r) for r in rows]
+        nodes = sorted(
+            self.nodes.values(),
+            key=lambda n: (n.get("influence_score", 0) + n.get("hidden_score", 0)) / 2,
+            reverse=True,
+        )[:20]
+        return [
+            {
+                "id": n["id"], "label": n["label"], "type": n["type"],
+                "country": n.get("country"),
+                "influence_score": n.get("influence_score", 0),
+                "hidden_score": n.get("hidden_score", 0),
+                "combined_score": (n.get("influence_score", 0) + n.get("hidden_score", 0)) // 2,
+            }
+            for n in nodes
+        ]
 
     async def search_nodes(self, q: str) -> List[Dict]:
-        async with self.pool.acquire() as conn:
-            rows = await conn.fetch("""
-                SELECT * FROM nodes WHERE label ILIKE $1 OR description ILIKE $1
-                ORDER BY influence_score DESC LIMIT 20
-            """, f"%{q}%")
-            return [dict(r) for r in rows]
+        q_lower = q.lower()
+        matches = [
+            n for n in self.nodes.values()
+            if q_lower in n.get("label", "").lower()
+            or q_lower in n.get("description", "").lower()
+        ]
+        return sorted(matches, key=lambda n: n.get("influence_score", 0), reverse=True)[:20]
 
     async def get_stats(self) -> Dict:
-        async with self.pool.acquire() as conn:
-            n  = await conn.fetchval("SELECT COUNT(*) FROM nodes")
-            e  = await conn.fetchval("SELECT COUNT(*) FROM edges")
-            p  = await conn.fetchval("SELECT COUNT(*) FROM predictions")
-            a  = await conn.fetchval("SELECT COUNT(*) FROM alerts WHERE is_read=0")
-            hn = await conn.fetchval("SELECT COUNT(*) FROM hidden_networks")
-            hi = await conn.fetchval("SELECT COUNT(*) FROM nodes WHERE hidden_score > 60")
-            return {"nodes": n, "edges": e, "predictions": p, "unread_alerts": a,
-                    "hidden_networks": hn, "high_opacity_actors": hi}
+        unread = sum(1 for a in self.alerts.values() if not a.get("is_read"))
+        hi_opacity = sum(1 for n in self.nodes.values() if n.get("hidden_score", 0) > 60)
+        return {
+            "nodes": len(self.nodes),
+            "edges": len(self.edges),
+            "predictions": len(self.predictions),
+            "unread_alerts": unread,
+            "hidden_networks": len(self.hidden_networks),
+            "high_opacity_actors": hi_opacity,
+        }
 
     async def upsert_entities(self, entities: List[Dict]):
         now = datetime.utcnow().isoformat()
-        async with self.pool.acquire() as conn:
-            async with conn.transaction():
-                for e in entities:
-                    await conn.execute("""
-                        INSERT INTO nodes
-                            (id,label,type,domain,country,description,influence_score,hidden_score,created_at,updated_at)
-                        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-                        ON CONFLICT(id) DO UPDATE SET
-                            influence_score = GREATEST(nodes.influence_score, EXCLUDED.influence_score),
-                            hidden_score    = GREATEST(nodes.hidden_score, EXCLUDED.hidden_score),
-                            updated_at      = EXCLUDED.updated_at
-                    """, e.get("id"), e.get("label"), e.get("type", "Organization"),
-                         "political", e.get("country"), e.get("description"),
-                         e.get("influence_score", 0), e.get("hidden_score", 0), now, now)
+        for e in entities:
+            eid = e.get("id")
+            if not eid:
+                continue
+            if eid in self.nodes:
+                self.nodes[eid]["influence_score"] = max(
+                    self.nodes[eid].get("influence_score", 0), e.get("influence_score", 0)
+                )
+                self.nodes[eid]["hidden_score"] = max(
+                    self.nodes[eid].get("hidden_score", 0), e.get("hidden_score", 0)
+                )
+                self.nodes[eid]["updated_at"] = now
+            else:
+                self.nodes[eid] = {
+                    "id": eid, "label": e.get("label", ""),
+                    "type": e.get("type", "Organization"), "domain": "political",
+                    "country": e.get("country"), "description": e.get("description", ""),
+                    "influence_score": e.get("influence_score", 0),
+                    "hidden_score": e.get("hidden_score", 0),
+                    "created_at": now, "updated_at": now,
+                }
 
     async def upsert_relations(self, relations: List[Dict]):
         now = datetime.utcnow().isoformat()
-        async with self.pool.acquire() as conn:
-            async with conn.transaction():
-                for r in relations:
-                    rid = f"{r.get('source')}_{r.get('target')}_{r.get('type')}"
-                    await conn.execute("""
-                        INSERT INTO edges
-                            (id,source,target,type,fact,influence_score,hidden_score,source_doc,date,created_at)
-                        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-                        ON CONFLICT(id) DO UPDATE SET
-                            hidden_score = GREATEST(edges.hidden_score, EXCLUDED.hidden_score)
-                    """, rid, r.get("source"), r.get("target"), r.get("type", "COLLEGATO_A"),
-                         r.get("fact"), r.get("influence_score", 0), r.get("hidden_score", 0),
-                         r.get("source_doc", ""), r.get("date"), now)
+        for r in relations:
+            rid = f"{r.get('source')}_{r.get('target')}_{r.get('type')}"
+            if rid in self.edges:
+                self.edges[rid]["hidden_score"] = max(
+                    self.edges[rid].get("hidden_score", 0), r.get("hidden_score", 0)
+                )
+            else:
+                self.edges[rid] = {
+                    "id": rid, "source": r.get("source"), "target": r.get("target"),
+                    "type": r.get("type", "COLLEGATO_A"), "fact": r.get("fact"),
+                    "influence_score": r.get("influence_score", 0),
+                    "hidden_score": r.get("hidden_score", 0),
+                    "source_doc": r.get("source_doc", ""), "date": r.get("date"),
+                    "created_at": now,
+                }
 
     async def upsert_predictions(self, predictions: List[Dict]):
         now = datetime.utcnow().isoformat()
-        async with self.pool.acquire() as conn:
-            async with conn.transaction():
-                for p in predictions:
-                    await conn.execute("""
-                        INSERT INTO predictions
-                            (id,title,prediction,actors_involved,hidden_network,confidence,timeframe,
-                             evidence,trigger_event,impact_score,category,severity,created_at)
-                        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-                        ON CONFLICT(id) DO UPDATE SET
-                            prediction = EXCLUDED.prediction,
-                            confidence = EXCLUDED.confidence,
-                            created_at = EXCLUDED.created_at
-                    """, p.get("id", f"pred_{now}"), p.get("title"), p.get("prediction"),
-                         json.dumps(p.get("actors_involved", [])), p.get("hidden_network", ""),
-                         p.get("confidence", 0), p.get("timeframe", ""), p.get("evidence", ""),
-                         p.get("trigger_event", ""), p.get("impact_score", 0),
-                         p.get("category", "POLICY"), p.get("severity", "MEDIUM"), now)
+        for p in predictions:
+            pid = p.get("id", f"pred_{now}")
+            self.predictions[pid] = {
+                "id": pid, "title": p.get("title"), "prediction": p.get("prediction"),
+                "actors_involved": json.dumps(p.get("actors_involved", [])),
+                "hidden_network": p.get("hidden_network", ""),
+                "confidence": p.get("confidence", 0), "timeframe": p.get("timeframe", ""),
+                "evidence": p.get("evidence", ""), "trigger_event": p.get("trigger_event", ""),
+                "impact_score": p.get("impact_score", 0),
+                "category": p.get("category", "POLICY"), "severity": p.get("severity", "MEDIUM"),
+                "created_at": now, "is_verified": 0,
+            }
 
     async def upsert_hidden_networks(self, networks: List[Dict]):
         now = datetime.utcnow().isoformat()
-        async with self.pool.acquire() as conn:
-            async with conn.transaction():
-                for hn in networks:
-                    await conn.execute("""
-                        INSERT INTO hidden_networks
-                            (id,name,description,core_actors,mechanism,opacity_score,reach_score,policy_areas,created_at)
-                        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-                        ON CONFLICT(id) DO UPDATE SET
-                            opacity_score = EXCLUDED.opacity_score,
-                            description   = EXCLUDED.description,
-                            created_at    = EXCLUDED.created_at
-                    """, hn.get("id"), hn.get("name"), hn.get("description"),
-                         json.dumps(hn.get("core_actors", [])), hn.get("mechanism", ""),
-                         hn.get("opacity_score", 0), hn.get("reach_score", 0),
-                         json.dumps(hn.get("policy_areas", [])), now)
+        for hn in networks:
+            hid = hn.get("id")
+            if not hid:
+                continue
+            self.hidden_networks[hid] = {
+                "id": hid, "name": hn.get("name"), "description": hn.get("description"),
+                "core_actors": json.dumps(hn.get("core_actors", [])),
+                "mechanism": hn.get("mechanism", ""),
+                "opacity_score": hn.get("opacity_score", 0),
+                "reach_score": hn.get("reach_score", 0),
+                "policy_areas": json.dumps(hn.get("policy_areas", [])),
+                "created_at": now,
+            }
 
     async def upsert_alerts(self, alerts: List[Dict]):
         now = datetime.utcnow().isoformat()
-        async with self.pool.acquire() as conn:
-            async with conn.transaction():
-                for a in alerts:
-                    await conn.execute("""
-                        INSERT INTO alerts
-                            (id,title,description,severity,entities_involved,predicted_impact,
-                             timeframe,recommendation,hidden_network,confidence,created_at)
-                        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-                        ON CONFLICT(id) DO UPDATE SET
-                            description = EXCLUDED.description,
-                            confidence  = EXCLUDED.confidence,
-                            created_at  = EXCLUDED.created_at
-                    """, a.get("id", f"alert_{now}"), a.get("title"), a.get("description"),
-                         a.get("severity", "MEDIUM"), a.get("entities_involved", "[]"),
-                         a.get("predicted_impact"), a.get("timeframe"), a.get("recommendation"),
-                         a.get("hidden_network", ""), a.get("confidence", 0), now)
+        for a in alerts:
+            aid = a.get("id", f"alert_{now}")
+            self.alerts[aid] = {
+                "id": aid, "title": a.get("title"), "description": a.get("description"),
+                "severity": a.get("severity", "MEDIUM"),
+                "entities_involved": a.get("entities_involved", "[]"),
+                "predicted_impact": a.get("predicted_impact"),
+                "timeframe": a.get("timeframe"), "recommendation": a.get("recommendation"),
+                "hidden_network": a.get("hidden_network", ""),
+                "confidence": a.get("confidence", 0),
+                "created_at": now, "is_read": False,
+            }

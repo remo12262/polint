@@ -8,8 +8,8 @@ services:
     envVars:
       - key: ANTHROPIC_API_KEY
         sync: false
-      - key: DB_PATH
-        value: /data/polint.db
+      - key: DATABASE_URL
+        sync: false
   - type: web
     name: polint-frontend
     runtime: static

@@ -145,7 +145,14 @@ class InfluenceExtractor:
                 tools=[{"type": "web_search_20250305", "name": "web_search"}],
                 messages=[{"role": "user", "content": EXTRACT_PROMPT.format(text=text[:3000])}]
             )
-            raw = next((b.text for b in msg.content if hasattr(b, "text")), "").strip()
+            raw = ""
+            for block in msg.content:
+                if hasattr(block, "text") and block.text.strip().startswith("["):
+                    raw = block.text.strip()
+                    break
+                elif hasattr(block, "text") and block.text.strip().startswith("{"):
+                    raw = block.text.strip()
+                    break
             if raw.startswith("```"):
                 raw = raw.split("```")[1]
                 if raw.startswith("json"): raw = raw[4:]
@@ -210,7 +217,14 @@ class InfluenceExtractor:
                 tools=[{"type": "web_search_20250305", "name": "web_search"}],
                 messages=[{"role": "user", "content": PREDICT_PROMPT.format(graph_data=graph_data)}]
             )
-            raw = next((b.text for b in msg.content if hasattr(b, "text")), "").strip()
+            raw = ""
+            for block in msg.content:
+                if hasattr(block, "text") and block.text.strip().startswith("["):
+                    raw = block.text.strip()
+                    break
+                elif hasattr(block, "text") and block.text.strip().startswith("{"):
+                    raw = block.text.strip()
+                    break
             if raw.startswith("```"):
                 raw = raw.split("```")[1]
                 if raw.startswith("json"): raw = raw[4:]
@@ -236,7 +250,14 @@ class InfluenceExtractor:
                     relations=json.dumps(hidden_edges, ensure_ascii=False)
                 )}]
             )
-            raw = next((b.text for b in msg.content if hasattr(b, "text")), "").strip()
+            raw = ""
+            for block in msg.content:
+                if hasattr(block, "text") and block.text.strip().startswith("["):
+                    raw = block.text.strip()
+                    break
+                elif hasattr(block, "text") and block.text.strip().startswith("{"):
+                    raw = block.text.strip()
+                    break
             if raw.startswith("```"):
                 raw = raw.split("```")[1]
                 if raw.startswith("json"): raw = raw[4:]

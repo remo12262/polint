@@ -139,7 +139,6 @@ class InfluenceExtractor:
         return re.sub(r'[^a-z0-9_]', '', text.lower().replace(' ', '_'))[:32]
 
     def _parse_json_from_response(self, msg) -> str:
-        """Estrae il JSON dalla risposta Claude, gestendo blocchi misti con web search."""
         raw = ""
         for block in msg.content:
             if hasattr(block, "text"):
@@ -147,12 +146,10 @@ class InfluenceExtractor:
                 if text.startswith("[") or text.startswith("{"):
                     raw = text
                     break
-        # Se non trovato con il metodo sopra, cerca in tutti i blocchi testo
         if not raw:
             for block in msg.content:
                 if hasattr(block, "text") and block.text.strip():
                     raw = block.text.strip()
-                    # Cerca JSON dentro il testo
                     if "```json" in raw:
                         raw = raw.split("```json")[1].split("```")[0].strip()
                         break
@@ -201,11 +198,11 @@ class InfluenceExtractor:
             )
             for item in items[:12]
         ]
-        resultresults = []
-for task in tasks:
-    result = await task
-    results.append(result)
-    await asyncio.sleep(3)s = await asyncio.gather(*tasks)
+        results = []
+        for task in tasks:
+            result = await task
+            results.append(result)
+            await asyncio.sleep(3)
         for result in results:
             for entity in result.get("entities", []):
                 eid = entity["id"]
@@ -225,7 +222,6 @@ for task in tasks:
         return {"entities": list(all_entities.values()), "relations": all_relations}
 
     async def generate_predictions(self, nodes: List[Dict], edges: List[Dict]) -> List[Dict]:
-        """Generate political predictions from the influence graph."""
         if not nodes:
             return []
         key_nodes = sorted(nodes, key=lambda n: n.get("influence_score", 0) + n.get("hidden_score", 0), reverse=True)[:15]
@@ -237,7 +233,6 @@ for task in tasks:
             "total_edges": len(edges),
         }, indent=2, ensure_ascii=False)
         try:
-            # Nessun web search qui — lavora sui dati del grafo esistente
             msg = client.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=2500,
@@ -250,7 +245,6 @@ for task in tasks:
             return []
 
     async def detect_hidden_networks(self, nodes: List[Dict], edges: List[Dict]) -> List[Dict]:
-        """Detect hidden influence clusters in the graph."""
         if not nodes:
             return []
         hidden_nodes = [n for n in nodes if n.get("hidden_score", 0) > 40][:20]
@@ -258,7 +252,6 @@ for task in tasks:
         if not hidden_nodes:
             hidden_nodes = nodes[:10]
         try:
-            # Nessun web search qui — lavora sui dati del grafo esistente
             msg = client.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=2000,
@@ -274,7 +267,6 @@ for task in tasks:
             return []
 
     async def generate_alerts(self, predictions: List[Dict]) -> List[Dict]:
-        """Convert high-confidence predictions into alerts."""
         alerts = []
         for p in predictions:
             if p.get("confidence", 0) >= 60:

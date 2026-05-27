@@ -201,7 +201,11 @@ class InfluenceExtractor:
             )
             for item in items[:12]
         ]
-        results = await asyncio.gather(*tasks)
+        resultresults = []
+for task in tasks:
+    result = await task
+    results.append(result)
+    await asyncio.sleep(3)s = await asyncio.gather(*tasks)
         for result in results:
             for entity in result.get("entities", []):
                 eid = entity["id"]

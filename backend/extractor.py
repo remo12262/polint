@@ -2,7 +2,6 @@ import anthropic
 import json
 import os
 from typing import Dict, List
-from datetime import datetime
 
 client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
@@ -47,6 +46,10 @@ Focalizzati su connessioni NON OVVIE e reti di influenza nascoste.
 Testo:
 {text}
 
+IMPORTANTE per il campo sentiment: analizza il testo e determina se la relazione
+tra le due entità è FAVOREVOLE (accordo, alleanza, sostegno), CONTRARIO (opposizione,
+critica, conflitto) o NEUTRO (semplice menzione, contatto istituzionale).
+
 Rispondi SOLO con JSON:
 {{
   "entities": [
@@ -56,8 +59,8 @@ Rispondi SOLO con JSON:
       "type": "TipoEntità",
       "country": "IT/EU/US/etc",
       "description": "ruolo e contesto",
-      "influence_score": 0-100,
-      "hidden_score": 0-100
+      "influence_score": 0,
+      "hidden_score": 0
     }}
   ],
   "relations": [
@@ -65,9 +68,10 @@ Rispondi SOLO con JSON:
       "source": "id1",
       "target": "id2",
       "type": "TIPO_RELAZIONE",
-      "fact": "descrizione concisa",
-      "influence_score": 0-100,
-      "hidden_score": 0-100,
+      "fact": "descrizione concisa della relazione",
+      "sentiment": "FAVOREVOLE|CONTRARIO|NEUTRO",
+      "influence_score": 0,
+      "hidden_score": 0,
       "date": "YYYY-MM o null"
     }}
   ]
@@ -87,11 +91,11 @@ Genera 4-6 previsioni predittive strutturate così:
     "prediction": "Descrizione dettagliata di cosa accadrà",
     "actors_involved": ["id1", "id2"],
     "hidden_network": "Descrizione della rete nascosta che guida questo evento",
-    "confidence": 0-100,
+    "confidence": 70,
     "timeframe": "es. 2-4 mesi",
     "evidence": "Evidenze nel grafo che supportano questa previsione",
     "trigger_event": "Evento scatenante atteso",
-    "impact_score": 0-100,
+    "impact_score": 70,
     "category": "POLICY|ELECTION|APPOINTMENT|REGULATION|ALLIANCE|FINANCIAL",
     "severity": "CRITICAL|HIGH|MEDIUM|LOW"
   }}
@@ -104,7 +108,7 @@ Focus su:
 - Movimenti di finanziamento che anticipano decisioni politiche
 - Pattern di media coverage che preannunciano mosse politiche
 
-Rispondi SOLO con JSON valido."""
+Rispondi SOLO con JSON valido. Nessun testo prima o dopo il JSON."""
 
 HIDDEN_NETWORKS_PROMPT = """Analizza questo grafo di influenze e identifica cluster di influenza nascosta.
 
@@ -119,13 +123,13 @@ Identifica 3-5 reti di influenza nascoste:
     "description": "Come opera questa rete di influenza",
     "core_actors": ["id1", "id2"],
     "mechanism": "Come esercita influenza (es. media control, finanziamenti, revolving door)",
-    "opacity_score": 0-100,
-    "reach_score": 0-100,
+    "opacity_score": 70,
+    "reach_score": 70,
     "policy_areas": ["es. energia", "difesa", "AI regulation"]
   }}
 ]
 
-Rispondi SOLO con JSON valido."""
+Rispondi SOLO con JSON valido. Nessun testo prima o dopo il JSON."""
 
 
 class InfluenceExtractor:
@@ -134,7 +138,34 @@ class InfluenceExtractor:
         import re
         return re.sub(r'[^a-z0-9_]', '', text.lower().replace(' ', '_'))[:32]
 
-    async def extract(self, text: str, source_id: str = "") -> Dict:
+    def _parse_json_from_response(self, msg) -> str:
+        """Estrae il JSON dalla risposta Claude, gestendo blocchi misti con web search."""
+        raw = ""
+        for block in msg.content:
+            if hasattr(block, "text"):
+                text = block.text.strip()
+                if text.startswith("[") or text.startswith("{"):
+                    raw = text
+                    break
+        # Se non trovato con il metodo sopra, cerca in tutti i blocchi testo
+        if not raw:
+            for block in msg.content:
+                if hasattr(block, "text") and block.text.strip():
+                    raw = block.text.strip()
+                    # Cerca JSON dentro il testo
+                    if "```json" in raw:
+                        raw = raw.split("```json")[1].split("```")[0].strip()
+                        break
+                    elif "```" in raw:
+                        raw = raw.split("```")[1].split("```")[0].strip()
+                        break
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        return raw.strip()
+
+    async def extract(self, text: str, source_id: str = "", source_url: str = "") -> Dict:
         if not text or len(text.strip()) < 50:
             return {"entities": [], "relations": []}
         try:
@@ -145,23 +176,14 @@ class InfluenceExtractor:
                 tools=[{"type": "web_search_20250305", "name": "web_search"}],
                 messages=[{"role": "user", "content": EXTRACT_PROMPT.format(text=text[:3000])}]
             )
-            raw = ""
-            for block in msg.content:
-                if hasattr(block, "text") and block.text.strip().startswith("["):
-                    raw = block.text.strip()
-                    break
-                elif hasattr(block, "text") and block.text.strip().startswith("{"):
-                    raw = block.text.strip()
-                    break
-            if raw.startswith("```"):
-                raw = raw.split("```")[1]
-                if raw.startswith("json"): raw = raw[4:]
+            raw = self._parse_json_from_response(msg)
             result = json.loads(raw)
             for e in result.get("entities", []):
                 if not e.get("id"):
                     e["id"] = self._slug(e.get("label", "unknown"))
             for r in result.get("relations", []):
                 r["source_doc"] = source_id
+                r["source_url"] = source_url
             return result
         except Exception as e:
             print(f"[extractor] extract error: {e}")
@@ -174,7 +196,8 @@ class InfluenceExtractor:
         tasks = [
             self.extract(
                 item.get(text_field, "") + " " + item.get("title", ""),
-                source_id=item.get("id", "")
+                source_id=item.get("id", ""),
+                source_url=item.get("url", "")
             )
             for item in items[:12]
         ]
@@ -201,7 +224,6 @@ class InfluenceExtractor:
         """Generate political predictions from the influence graph."""
         if not nodes:
             return []
-        # Focus on high-influence and high-hidden-score nodes
         key_nodes = sorted(nodes, key=lambda n: n.get("influence_score", 0) + n.get("hidden_score", 0), reverse=True)[:15]
         key_edges = sorted(edges, key=lambda e: e.get("hidden_score", 0), reverse=True)[:20]
         graph_data = json.dumps({
@@ -211,23 +233,13 @@ class InfluenceExtractor:
             "total_edges": len(edges),
         }, indent=2, ensure_ascii=False)
         try:
+            # Nessun web search qui — lavora sui dati del grafo esistente
             msg = client.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=2500,
-                tools=[{"type": "web_search_20250305", "name": "web_search"}],
                 messages=[{"role": "user", "content": PREDICT_PROMPT.format(graph_data=graph_data)}]
             )
-            raw = ""
-            for block in msg.content:
-                if hasattr(block, "text") and block.text.strip().startswith("["):
-                    raw = block.text.strip()
-                    break
-                elif hasattr(block, "text") and block.text.strip().startswith("{"):
-                    raw = block.text.strip()
-                    break
-            if raw.startswith("```"):
-                raw = raw.split("```")[1]
-                if raw.startswith("json"): raw = raw[4:]
+            raw = self._parse_json_from_response(msg)
             return json.loads(raw)
         except Exception as e:
             print(f"[extractor] prediction error: {e}")
@@ -237,30 +249,21 @@ class InfluenceExtractor:
         """Detect hidden influence clusters in the graph."""
         if not nodes:
             return []
-        # Only high hidden_score items
         hidden_nodes = [n for n in nodes if n.get("hidden_score", 0) > 40][:20]
         hidden_edges = [e for e in edges if e.get("hidden_score", 0) > 40][:25]
+        if not hidden_nodes:
+            hidden_nodes = nodes[:10]
         try:
+            # Nessun web search qui — lavora sui dati del grafo esistente
             msg = client.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=2000,
-                tools=[{"type": "web_search_20250305", "name": "web_search"}],
                 messages=[{"role": "user", "content": HIDDEN_NETWORKS_PROMPT.format(
                     entities=json.dumps(hidden_nodes, ensure_ascii=False),
                     relations=json.dumps(hidden_edges, ensure_ascii=False)
                 )}]
             )
-            raw = ""
-            for block in msg.content:
-                if hasattr(block, "text") and block.text.strip().startswith("["):
-                    raw = block.text.strip()
-                    break
-                elif hasattr(block, "text") and block.text.strip().startswith("{"):
-                    raw = block.text.strip()
-                    break
-            if raw.startswith("```"):
-                raw = raw.split("```")[1]
-                if raw.startswith("json"): raw = raw[4:]
+            raw = self._parse_json_from_response(msg)
             return json.loads(raw)
         except Exception as e:
             print(f"[extractor] hidden networks error: {e}")

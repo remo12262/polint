@@ -46,6 +46,13 @@ Focalizzati su connessioni NON OVVIE e reti di influenza nascoste.
 Testo:
 {text}
 
+REGOLE CRITICHE:
+- FINANZIA_OCCULTO: SOLO per flussi monetari non dichiarati. MAI per voti o consenso.
+- RETE_INFORMALE: per accordi taciti, voti incrociati, simpatie elettorali.
+- hidden_score sopra 70: SOLO se relazione esplicitamente segreta o da indagini.
+- hidden_score 40-70: relazioni poco trasparenti ma non illecite.
+- hidden_score sotto 40: relazioni pubbliche e dichiarate.
+
 IMPORTANTE per il campo sentiment: analizza il testo e determina se la relazione
 tra le due entità è FAVOREVOLE (accordo, alleanza, sostegno), CONTRARIO (opposizione,
 critica, conflitto) o NEUTRO (semplice menzione, contatto istituzionale).
@@ -72,7 +79,9 @@ Rispondi SOLO con JSON:
       "sentiment": "FAVOREVOLE|CONTRARIO|NEUTRO",
       "influence_score": 0,
       "hidden_score": 0,
-      "date": "YYYY-MM o null"
+      "date": "YYYY-MM o null",
+      "source_url": null,
+      "source_title": null
     }}
   ]
 }}"""
@@ -181,6 +190,7 @@ class InfluenceExtractor:
             for r in result.get("relations", []):
                 r["source_doc"] = source_id
                 r["source_url"] = source_url
+                if not r.get("source_title"): r["source_title"] = None
             return result
         except Exception as e:
             print(f"[extractor] extract error: {e}")

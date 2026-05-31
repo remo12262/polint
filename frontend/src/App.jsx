@@ -342,6 +342,8 @@ export default function App() {
                         <div key={i} style={{fontSize:11,padding:"5px 8px",borderRadius:5,background:"var(--color-background-secondary)",marginBottom:4,borderLeft:`2px solid ${ec}`}}>
                           <div style={{fontWeight:500}}>{isSrc?"→":"←"} {other}</div>
                           <div style={{fontSize:10,color:ec}}>{r.type}</div>
+                          {r.fact&&<div style={{fontSize:10,color:"var(--color-text-secondary)",marginTop:2,lineHeight:1.4}}>{r.fact}</div>}
+                          {r.source_url&&<a href={r.source_url} target="_blank" rel="noopener noreferrer" style={{fontSize:10,color:"var(--color-text-tertiary)",display:"block",marginTop:2,textDecoration:"underline",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.source_title||r.source_url}</a>}
                           {r.hidden_score>50&&<div style={{fontSize:10,color:"#E24B4A"}}>⚠ opacità: {r.hidden_score}</div>}
                         </div>
                       )

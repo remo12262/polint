@@ -50,6 +50,7 @@ export default function App() {
   const [nodeDetails, setNodeDetails] = useState(null)
   const [tab, setTab] = useState("graph")
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [search, setSearch] = useState("")
   const [showHidden, setShowHidden] = useState(false)
 
@@ -64,7 +65,7 @@ export default function App() {
     try {
       const [gRes, pRes, hnRes, aRes, sRes] = await Promise.all([
         fetch(`${API}/api/graph`),
-        fetch(`${API}/api/influence-ranking`),
+        fetch(`${API}/api/predictions`),
         fetch(`${API}/api/hidden-networks`),
         fetch(`${API}/api/alerts`),
         fetch(`${API}/api/stats`),
@@ -78,6 +79,17 @@ export default function App() {
       setLoading(false)
     } catch(e) { console.error(e); setLoading(false) }
   }, [])
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      await fetch(`${API}/api/refresh`, {method:"POST"})
+      setTimeout(fetchData, 8000)
+      setTimeout(()=>{ fetchData(); setRefreshing(false) }, 15000)
+    } catch(e) {
+      setRefreshing(false)
+    }
+  }, [fetchData])
 
   useEffect(()=>{ fetchData() },[fetchData])
 
@@ -290,7 +302,9 @@ export default function App() {
         <div style={{display:"flex",gap:8,alignItems:"center",fontSize:11,color:"var(--color-text-tertiary)"}}>
           {stats.unread_alerts>0&&<span style={{background:"#E24B4A",color:"#fff",borderRadius:10,padding:"2px 7px"}}>{stats.unread_alerts} alert</span>}
           <span>{stats.nodes} nodi · {stats.edges} relazioni · {stats.predictions||0} previsioni</span>
-          <button onClick={()=>fetch(`${API}/api/refresh`,{method:"POST"}).then(()=>setTimeout(fetchData,3000))} style={{padding:"3px 10px",borderRadius:5,border:"0.5px solid var(--color-border-secondary)",background:"var(--color-background-secondary)",cursor:"pointer",fontSize:11,color:"var(--color-text-secondary)"}}>↻</button>
+          <button onClick={handleRefresh} disabled={refreshing} style={{padding:"3px 10px",borderRadius:5,border:"0.5px solid var(--color-border-secondary)",background:refreshing?"#EF9F2722":"var(--color-background-secondary)",cursor:refreshing?"not-allowed":"pointer",fontSize:11,color:refreshing?"#EF9F27":"var(--color-text-secondary)"}}>
+            {refreshing?"⏳ Aggiornamento...":"↻ Aggiorna"}
+          </button>
         </div>
       </div>
 
@@ -301,7 +315,6 @@ export default function App() {
         <div style={{display:"flex"}}>
           <div style={{flex:1,position:"relative"}}>
             <div style={{position:"absolute",top:10,left:10,zIndex:10,display:"flex",gap:8,alignItems:"center"}}>
-              {/* Legend compact */}
               <div style={{background:"var(--color-background-primary)",border:"0.5px solid var(--color-border-tertiary)",borderRadius:8,padding:"6px 10px",display:"flex",flexWrap:"wrap",gap:"4px 10px",maxWidth:360}}>
                 {Object.entries(NODE_COLORS).map(([t,c])=>(
                   <div key={t} style={{display:"flex",alignItems:"center",gap:3,fontSize:10,color:"var(--color-text-secondary)"}}>
@@ -360,9 +373,9 @@ export default function App() {
       {!loading&&tab==="predictions"&&(
         <div style={{padding:20,maxWidth:820}}>
           <h2 style={{fontSize:15,fontWeight:500,marginBottom:4}}>Previsioni predittive</h2>
-          <p style={{fontSize:12,color:"var(--color-text-tertiary)",marginBottom:16}}>Generate da Claude AI analizzando le reti di influenza del grafo. Aggiornate ogni 6 ore.</p>
-          {alerts.filter(a=>a.confidence>0).length===0&&<p style={{color:"var(--color-text-tertiary)",fontSize:13}}>Nessuna previsione disponibile. Clicca ↻ per generare.</p>}
-          {alerts.filter(a=>a.confidence>0).map((a,i)=>(
+          <p style={{fontSize:12,color:"var(--color-text-tertiary)",marginBottom:16}}>Generate da Claude AI analizzando le reti di influenza del grafo. Clicca ↻ Aggiorna per rigenerare.</p>
+          {predictions.length===0&&<p style={{color:"var(--color-text-tertiary)",fontSize:13}}>Nessuna previsione disponibile. Clicca ↻ Aggiorna per generare.</p>}
+          {predictions.map((a,i)=>(
             <div key={i} style={{background:"var(--color-background-primary)",border:"0.5px solid var(--color-border-tertiary)",borderLeft:`3px solid ${SEV_COLOR[a.severity]||"#888"}`,borderRadius:8,padding:"14px 16px",marginBottom:12}}>
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,flexWrap:"wrap"}}>
                 <span style={{fontSize:11,fontWeight:500,padding:"2px 7px",borderRadius:4,background:SEV_COLOR[a.severity]+"22",color:SEV_COLOR[a.severity]}}>{a.severity}</span>
@@ -390,7 +403,7 @@ export default function App() {
         <div style={{padding:20,maxWidth:820}}>
           <h2 style={{fontSize:15,fontWeight:500,marginBottom:4}}>Reti di influenza nascoste</h2>
           <p style={{fontSize:12,color:"var(--color-text-tertiary)",marginBottom:16}}>Cluster di influenza non trasparente identificati da Claude AI sul grafo delle relazioni.</p>
-          {hiddenNets.length===0&&<p style={{color:"var(--color-text-tertiary)",fontSize:13}}>Nessuna rete nascosta rilevata ancora. Clicca ↻ per analizzare.</p>}
+          {hiddenNets.length===0&&<p style={{color:"var(--color-text-tertiary)",fontSize:13}}>Nessuna rete nascosta rilevata ancora. Clicca ↻ Aggiorna per analizzare.</p>}
           {hiddenNets.map((hn,i)=>(
             <div key={i} style={{background:"var(--color-background-primary)",border:"0.5px solid var(--color-border-tertiary)",borderRadius:8,padding:"14px 16px",marginBottom:12}}>
               <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>

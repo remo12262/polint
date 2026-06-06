@@ -63,18 +63,19 @@ export default function App() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [gRes, pRes, hnRes, aRes, sRes] = await Promise.all([
+      const [gRes, hnRes, aRes, sRes, rRes] = await Promise.all([
         fetch(`${API}/api/graph`),
-        fetch(`${API}/api/influence-ranking`),
         fetch(`${API}/api/hidden-networks`),
         fetch(`${API}/api/alerts`),
         fetch(`${API}/api/stats`),
+        fetch(`${API}/api/influence-ranking`),
       ])
       const g = await gRes.json()
+      const alertsData = await aRes.json()
       setNodes(g.nodes||[]); setEdges(g.edges||[])
-      setPredictions(await pRes.json()||[])
+      setPredictions((alertsData||[]).filter(a=>a.confidence>0))
       setHiddenNets(await hnRes.json()||[])
-      setAlerts(await aRes.json()||[])
+      setAlerts(alertsData||[])
       setStats(await sRes.json()||{})
       setLoading(false)
     } catch(e) { console.error(e); setLoading(false) }
@@ -472,3 +473,5 @@ export default function App() {
     </div>
   )
 }
+
+

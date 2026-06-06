@@ -50,9 +50,9 @@ export default function App() {
   const [nodeDetails, setNodeDetails] = useState(null)
   const [tab, setTab] = useState("graph")
   const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
   const [search, setSearch] = useState("")
   const [showHidden, setShowHidden] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
 
   const posRef = useRef({})
   const velRef = useRef({})
@@ -65,7 +65,7 @@ export default function App() {
     try {
       const [gRes, pRes, hnRes, aRes, sRes] = await Promise.all([
         fetch(`${API}/api/graph`),
-        fetch(`${API}/api/predictions`),
+        fetch(`${API}/api/influence-ranking`),
         fetch(`${API}/api/hidden-networks`),
         fetch(`${API}/api/alerts`),
         fetch(`${API}/api/stats`),
@@ -80,18 +80,16 @@ export default function App() {
     } catch(e) { console.error(e); setLoading(false) }
   }, [])
 
-  const handleRefresh = useCallback(async () => {
+  useEffect(()=>{ fetchData() },[fetchData])
+
+  const handleRefresh = async () => {
     setRefreshing(true)
     try {
       await fetch(`${API}/api/refresh`, {method:"POST"})
-      setTimeout(fetchData, 8000)
+      setTimeout(()=>{ fetchData() }, 8000)
       setTimeout(()=>{ fetchData(); setRefreshing(false) }, 15000)
-    } catch(e) {
-      setRefreshing(false)
-    }
-  }, [fetchData])
-
-  useEffect(()=>{ fetchData() },[fetchData])
+    } catch(e) { setRefreshing(false) }
+  }
 
   useEffect(()=>{
     if(nodes.length===0) return
@@ -315,6 +313,7 @@ export default function App() {
         <div style={{display:"flex"}}>
           <div style={{flex:1,position:"relative"}}>
             <div style={{position:"absolute",top:10,left:10,zIndex:10,display:"flex",gap:8,alignItems:"center"}}>
+              {/* Legend compact */}
               <div style={{background:"var(--color-background-primary)",border:"0.5px solid var(--color-border-tertiary)",borderRadius:8,padding:"6px 10px",display:"flex",flexWrap:"wrap",gap:"4px 10px",maxWidth:360}}>
                 {Object.entries(NODE_COLORS).map(([t,c])=>(
                   <div key={t} style={{display:"flex",alignItems:"center",gap:3,fontSize:10,color:"var(--color-text-secondary)"}}>

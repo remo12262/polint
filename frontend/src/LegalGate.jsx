@@ -1,18 +1,5 @@
 import { useState, useEffect } from "react";
 
-/*
-  LegalGate — password d'accesso + presentazione + accettazione Termini + banner.
-  Uso:
-      <LegalGate appName="POLINT" description="testo di presentazione...">
-        <App />
-      </LegalGate>
-  Per USAint cambia appName e description.
-
-  PASSWORD: si imposta come variabile d'ambiente su Render -> VITE_ACCESS_PASSWORD.
-  Se non e' impostata, lo step password viene saltato.
-  NOTA: password lato frontend = filtro/deterrente, non protezione forte.
-*/
-
 export default function LegalGate({ appName = "POLINT", description = "", children }) {
   const ACCEPT_KEY = `legal_accepted_${appName}`;
   const UNLOCK_KEY = `unlocked_${appName}`;
@@ -75,7 +62,6 @@ export default function LegalGate({ appName = "POLINT", description = "", childr
   const link = { color: "#8B7FD6", cursor: "pointer", textDecoration: "underline" };
   const desc = { color: "#B9C2D6", fontSize: 14.5, marginTop: 4, marginBottom: 22, lineHeight: 1.6 };
 
-  // STEP 1 — password + presentazione
   if (!unlocked) {
     return (
       <div style={overlay}>
@@ -98,7 +84,6 @@ export default function LegalGate({ appName = "POLINT", description = "", childr
     );
   }
 
-  // STEP 2 — accettazione Termini
   if (!accepted) {
     return (
       <div style={overlay}>
@@ -108,11 +93,11 @@ export default function LegalGate({ appName = "POLINT", description = "", childr
             {appName} analizza reti di influenza politica e mediatica a partire da
             <b> fonti pubbliche</b>. I collegamenti mostrati sono
             <b> correlazioni e co-occorrenze osservate</b>, non affermazioni di
-            coordinamento occulto ne' accuse. Ogni relazione riporta la fonte e un grado
-            di confidenza. L'analisi riguarda figure pubbliche nella loro attivita' pubblica.
+            coordinamento occulto né accuse. Ogni relazione riporta la fonte e un grado
+            di confidenza. L'analisi riguarda figure pubbliche nella loro attività pubblica.
           </p>
           <p>
-            Sei l'unico responsabile di cio' che esporti, pubblichi o diffondi all'esterno
+            Sei l'unico responsabile di ciò che esporti, pubblichi o diffondi all'esterno
             del servizio. Entrando dichiari di aver letto e di accettare i{" "}
             <span style={link} onClick={() => setShowTerms(true)}>Termini di servizio e l'Informativa privacy</span>.
           </p>
@@ -125,7 +110,6 @@ export default function LegalGate({ appName = "POLINT", description = "", childr
     );
   }
 
-  // STEP 3 — app sbloccata + banner di metodo
   return (
     <>
       <div style={banner}>
@@ -139,6 +123,7 @@ export default function LegalGate({ appName = "POLINT", description = "", childr
 }
 
 function TermsModal({ appName, onClose, box, overlay }) {
+  const link = { color: "#8B7FD6", cursor: "pointer", textDecoration: "underline" };
   const close = { float: "right", background: "none", border: "none", color: "#8A96B2", fontSize: 22, cursor: "pointer" };
   return (
     <div style={overlay} onClick={onClose}>
@@ -149,18 +134,18 @@ function TermsModal({ appName, onClose, box, overlay }) {
         <p>
           Le connessioni indicano correlazioni, co-occorrenze o allineamenti osservati nei
           dati e non implicano accordo, coordinamento o condotta illecita tra i soggetti.
-          L'interpretazione dei grafi e' responsabilita' di chi li legge.
+          L'interpretazione dei grafi è responsabilità di chi li legge.
         </p>
-        <h3 style={{ fontSize: "1rem" }}>Responsabilita' dell'utente</h3>
+        <h3 style={{ fontSize: "1rem" }}>Responsabilità dell'utente</h3>
         <p>
-          Chi esporta o diffonde i grafi all'esterno e' l'unico responsabile di tale
+          Chi esporta o diffonde i grafi all'esterno è l'unico responsabile di tale
           diffusione, anche ai fini della normativa su diffamazione e protezione dei dati.
         </p>
         <h3 style={{ fontSize: "1rem" }}>Dati e privacy (GDPR)</h3>
         <p>
-          Sono trattati dati di figure pubbliche relativi alla loro attivita' pubblica, da
+          Sono trattati dati di figure pubbliche relativi alla loro attività pubblica, da
           fonti accessibili al pubblico. Base giuridica: interesse pubblico all'informazione
-          e dati resi pubblici dall'interessato. Diritti e segnalazioni: remo.pulcini@libero.it.
+          e dati resi pubblici dall'interessato. Diritti e segnalazioni: remo.pulcini@libero.it
         </p>
       </div>
     </div>
